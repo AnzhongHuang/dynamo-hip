@@ -69,7 +69,12 @@ NIXL_COMMIT=db70e287a4529cf7084f2193b2f2490195bfde2d
 NIXL_REPO=AnzhongHuang/nixl-hip.git
 
 VLLM_REPO=vllm-project/vllm.git
-VLLM_COMMIT="dc1b4a6f1300003ae27f033afbdff5e2683721ce"
+VLLM_COMMIT="0408efc6d0c17fba17b2be38d0d0f02e96d2bf9d"
+
+VLLM_REF="0.7.2"
+ROOT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
+VLLM_PATCH="${ROOT_DIR}/container/deps/vllm/vllm_v${VLLM_REF}-dynamo-kv-disagg-patch.patch"
+echo "VLLM_PATH:${VLLM_PATCH}"
 
 get_options() {
     while :; do
@@ -241,7 +246,7 @@ get_options() {
     if [ -n "$TARGET" ]; then
         TARGET_STR="--target ${TARGET}"
     else
-        TARGET_STR="--target final"
+        TARGET_STR="--target local-dev"
     fi
 }
 
@@ -302,7 +307,7 @@ fi
 
 
 if [[ $FRAMEWORK == "ROCM" ]]; then
-    VLLM_DIR="/tmp/vllm/vllm_src"
+    VLLM_DIR="/tmp/vllm_src"
 
     # Clone original NIXL to temp directory
     if [ -d "$VLLM_DIR" ]; then
@@ -323,6 +328,19 @@ if [[ $FRAMEWORK == "ROCM" ]]; then
             echo "Please delete $VLLM_DIR and re-run the build script."
             exit 1
         fi
+
+        # Apply the patch
+        if [ -f "$VLLM_PATCH" ]; then
+            if ! patch -p1 < "$VLLM_PATCH"; then
+                echo "ERROR: Failed to apply patch $VLLM_PATCH."
+                exit 1
+            fi
+        else
+            echo "Patch file $VLLM_PATCH not found. Skipping patch."
+        fi
+
+        # change the project's name
+        sed -i 's/name="vllm"/name="ai_dynamo_vllm"/' /tmp/vllm_src/setup.py
     fi
 
     BUILD_CONTEXT_ARG+=" --build-context vllm_src=$VLLM_DIR"

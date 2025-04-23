@@ -313,7 +313,7 @@ RUN source /opt/dynamo/venv/bin/activate && \
     uv build --wheel --out-dir /workspace/dist
 
 
-FROM install_vllm AS final
+FROM install_vllm AS deploy
 # Copy NIXL
 COPY --from=build_nixl /usr/local/nixl /usr/local/nixl
 ENV LD_LIBRARY_PATH=/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
@@ -333,6 +333,59 @@ RUN mkdir -p /opt/dynamo/bindings/wheels && \
 RUN pip install /workspace/dist/ai_dynamo_runtime*cp312*.whl && \
     pip install /workspace/dist/ai_dynamo*any.whl
 
+#######################################
+########## Local Development ##########
+#######################################
+
+FROM base AS local-dev
+
+# https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
+# Will use the default ubuntu user, but give sudo access
+# Needed so files permissions aren't set to root ownership when writing from inside container
+
+# Don't want ubuntu to be editable, just change uid and gid. User ubuntu is hardcoded in .devcontainer
+ENV USERNAME=ubuntu
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+RUN apt-get update && apt-get install -y sudo gnupg2 gnupg1 \
+    && echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME \
+    && mkdir -p /home/$USERNAME \
+    && chown -R $USERNAME:$USERNAME /home/$USERNAME \
+    && rm -rf /var/lib/apt/lists/* \
+    && chsh -s /bin/bash $USERNAME
+
+COPY --from=deploy --chown=$USER_UID:$USER_GID /opt/dynamo/venv/ /opt/dynamo/venv/
+COPY --from=deploy --chown=$USERNAME:$USERNAME /usr/local/bin /usr/local/bin
+
+# Copy NIXL
+COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/nixl /usr/local/nixl
+ENV LD_LIBRARY_PATH=/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+ENV PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages/:/opt/nixl/test/python/:$PYTHONPATH
+
+ENV DYNAMO_HOME=/workspace
+# Activate virtual environment
+ENV VIRTUAL_ENV=/opt/dynamo/venv
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+ENV PATH="$PATH:/usr/local/bin"
+
+USER $USERNAME
+ENV HOME=/home/$USERNAME
+WORKDIR $HOME
+
+# https://code.visualstudio.com/remote/advancedcontainers/persist-bash-history
+RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=$HOME/.commandhistory/.bash_history" \
+    && mkdir -p $HOME/.commandhistory \
+    && touch $HOME/.commandhistory/.bash_history \
+    && echo "$SNIPPET" >> "$HOME/.bashrc"
+
+RUN mkdir -p /home/$USERNAME/.cache/
+RUN mkdir -p /home/$USERNAME/app/
+#ENV VLLM_KV_CAPI_PATH=$HOME/dynamo/.build/target/debug/libdynamo_llm_capi.so
+
+#ENTRYPOINT ["/opt/nvidia/nvidia_entrypoint.sh"]
+
 ARG BASE_IMAGE
 ARG BASE_IMAGE_TAG
 ARG HIPBLAS_COMMON_BRANCH
@@ -350,19 +403,19 @@ ARG FA_BRANCH
 ARG FA_REPO
 ARG AITER_BRANCH
 ARG AITER_REPO
-RUN echo "BASE_IMAGE: ${BASE_IMAGE}" > /app/versions.txt \
-    && echo "BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}" > /app/versions.txt \
-    && echo "HIPBLAS_COMMON_BRANCH: ${HIPBLAS_COMMON_BRANCH}" >> /app/versions.txt \
-    && echo "HIPBLASLT_BRANCH: ${HIPBLASLT_BRANCH}" >> /app/versions.txt \
-    && echo "LEGACY_HIPBLASLT_OPTION: ${LEGACY_HIPBLASLT_OPTION}" >> /app/versions.txt \
-    && echo "RCCL_BRANCH: ${RCCL_BRANCH}" >> /app/versions.txt \
-    && echo "RCCL_REPO: ${RCCL_REPO}" >> /app/versions.txt \
-    && echo "TRITON_BRANCH: ${TRITON_BRANCH}" >> /app/versions.txt \
-    && echo "TRITON_REPO: ${TRITON_REPO}" >> /app/versions.txt \
-    && echo "PYTORCH_BRANCH: ${PYTORCH_BRANCH}" >> /app/versions.txt \
-    && echo "PYTORCH_VISION_BRANCH: ${PYTORCH_VISION_BRANCH}" >> /app/versions.txt \
-    && echo "PYTORCH_REPO: ${PYTORCH_REPO}" >> /app/versions.txt \
-    && echo "PYTORCH_VISION_REPO: ${PYTORCH_VISION_REPO}" >> /app/versions.txt \
-    && echo "FA_BRANCH: ${FA_BRANCH}" >> /app/versions.txt \
-    && echo "AITER_BRANCH: ${AITER_BRANCH}" >> /app/versions.txt \
-    && echo "AITER_REPO: ${AITER_REPO}" >> /app/versions.txt
+RUN echo "BASE_IMAGE: ${BASE_IMAGE}" > /home/$USERNAME/app/versions.txt \
+    && echo "BASE_IMAGE_TAG: ${BASE_IMAGE_TAG}" > /home/$USERNAME/app/versions.txt \
+    && echo "HIPBLAS_COMMON_BRANCH: ${HIPBLAS_COMMON_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "HIPBLASLT_BRANCH: ${HIPBLASLT_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "LEGACY_HIPBLASLT_OPTION: ${LEGACY_HIPBLASLT_OPTION}" >> /home/$USERNAME/app/versions.txt \
+    && echo "RCCL_BRANCH: ${RCCL_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "RCCL_REPO: ${RCCL_REPO}" >> /home/$USERNAME/app/versions.txt \
+    && echo "TRITON_BRANCH: ${TRITON_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "TRITON_REPO: ${TRITON_REPO}" >> /home/$USERNAME/app/versions.txt \
+    && echo "PYTORCH_BRANCH: ${PYTORCH_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "PYTORCH_VISION_BRANCH: ${PYTORCH_VISION_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "PYTORCH_REPO: ${PYTORCH_REPO}" >> /home/$USERNAME/app/versions.txt \
+    && echo "PYTORCH_VISION_REPO: ${PYTORCH_VISION_REPO}" >> /home/$USERNAME/app/versions.txt \
+    && echo "FA_BRANCH: ${FA_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "AITER_BRANCH: ${AITER_BRANCH}" >> /home/$USERNAME/app/versions.txt \
+    && echo "AITER_REPO: ${AITER_REPO}" >> /home/$USERNAME/app/versions.txt
