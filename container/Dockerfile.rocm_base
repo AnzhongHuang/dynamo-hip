@@ -316,7 +316,8 @@ RUN source /opt/dynamo/venv/bin/activate && \
 FROM install_vllm AS deploy
 # Copy NIXL
 COPY --from=build_nixl /usr/local/nixl /usr/local/nixl
-ENV LD_LIBRARY_PATH=/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/ucx /usr/local/ucx
+ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages/:/opt/nixl/test/python/:$PYTHONPATH
 
 
@@ -361,7 +362,8 @@ COPY --from=deploy --chown=$USERNAME:$USERNAME /usr/local/bin /usr/local/bin
 
 # Copy NIXL
 COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/nixl /usr/local/nixl
-ENV LD_LIBRARY_PATH=/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/ucx /usr/local/ucx
+ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages/:/opt/nixl/test/python/:$PYTHONPATH
 
 ENV DYNAMO_HOME=/workspace
