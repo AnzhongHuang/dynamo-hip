@@ -65,13 +65,14 @@ VLLM_BASE_IMAGE_TAG="6.3.4-complete"
 NONE_BASE_IMAGE="ubuntu"
 NONE_BASE_IMAGE_TAG="24.04"
 
-NIXL_COMMIT=db70e287a4529cf7084f2193b2f2490195bfde2d
+NIXL_COMMIT=084d0588cc318cf8081110ee62318088d626eed9
 NIXL_REPO=AnzhongHuang/nixl-hip.git
 
 VLLM_REPO=vllm-project/vllm.git
-VLLM_COMMIT="0408efc6d0c17fba17b2be38d0d0f02e96d2bf9d"
+VLLM_COMMIT="dc1b4a6f1300003ae27f033afbdff5e2683721ce"
+#VLLM_COMMIT="0408efc6d0c17fba17b2be38d0d0f02e96d2bf9d"
 
-VLLM_REF="0.7.2"
+VLLM_REF="0.8.4"
 ROOT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
 VLLM_PATCH="${ROOT_DIR}/container/deps/vllm/vllm_v${VLLM_REF}-dynamo-kv-disagg-patch.patch"
 echo "VLLM_PATH:${VLLM_PATCH}"
@@ -246,7 +247,7 @@ get_options() {
     if [ -n "$TARGET" ]; then
         TARGET_STR="--target ${TARGET}"
     else
-        TARGET_STR="--target local-dev"
+        TARGET_STR="--target deploy"
     fi
 }
 
@@ -341,6 +342,7 @@ if [[ $FRAMEWORK == "ROCM" ]]; then
 
         # change the project's name
         sed -i 's/name="vllm"/name="ai_dynamo_vllm"/' /tmp/vllm_src/setup.py
+        sed -i 's/name = "vllm"/name="ai_dynamo_vllm"/' /tmp/vllm_src/pyproject.toml
     fi
 
     BUILD_CONTEXT_ARG+=" --build-context vllm_src=$VLLM_DIR"

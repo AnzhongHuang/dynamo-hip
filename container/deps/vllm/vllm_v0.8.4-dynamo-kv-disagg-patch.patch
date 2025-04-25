@@ -1,3 +1,16 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 167e975c7..9a16aba39 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -13,7 +13,7 @@ requires = [
+ build-backend = "setuptools.build_meta"
+ 
+ [project]
+-name = "vllm"
++name="ai_dynamo_vllm"
+ authors = [{name = "vLLM Team"}]
+ license = { "file"= "LICENSE" }
+ readme = "README.md"
 diff --git a/vllm/config.py b/vllm/config.py
 index 2912361ee..eea9cb65d 100644
 --- a/vllm/config.py
@@ -1014,10 +1027,10 @@ index 000000000..a2f9ce99e
 \ No newline at end of file
 diff --git a/vllm/distributed/device_communicators/nixl.py b/vllm/distributed/device_communicators/nixl.py
 new file mode 100644
-index 000000000..136a0bd37
+index 000000000..0488b1dae
 --- /dev/null
 +++ b/vllm/distributed/device_communicators/nixl.py
-@@ -0,0 +1,394 @@
+@@ -0,0 +1,401 @@
 +# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 +# SPDX-License-Identifier: Apache-2.0
 +#
@@ -1103,12 +1116,19 @@ index 000000000..136a0bd37
 +        return self.nixl_wrapper.name
 +
 +    def register_kv_caches(self, kv_caches: List[torch.Tensor]):
-+        _, num_blocks, block_size, num_heads, head_dim = kv_caches[0].shape
-+        self.block_len = block_size * num_heads * head_dim * kv_caches[0].element_size()
++        flattened = 0
++        if len(kv_caches[0].shape) == 5:
++            _, num_blocks, block_size, num_heads, head_dim = kv_caches[0].shape
++            flattened = block_size * num_heads * head_dim
++            self.num_heads = num_heads
++        elif len(kv_caches[0].shape) == 3:
++            _, num_blocks, flattened = kv_caches[0].shape
++
++        self.block_len = flattened * kv_caches[0].element_size()
 +        logger.debug("Per layer kv cache size: %s", kv_caches[0].shape)
 +        self.num_layers = len(kv_caches)
 +        self.num_blocks = num_blocks
-+        self.num_heads = num_heads
++
 +        self.kv_caches = kv_caches
 +        kv_caches_base_addr = []
 +        caches_data = []

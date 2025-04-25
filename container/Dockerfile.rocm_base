@@ -196,7 +196,7 @@ ARG VLLM_PATCHED_PACKAGE_VERSION="0.8.4"
 
 # Build wheel with ROCm arch specification
 RUN cd /opt/vllm_src && \
-    pip install -U -r requirements-rocm.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip install -U -r requirements/rocm.txt && \
     pip install /opt/rocm/share/amd_smi && \
     PYTORCH_ROCM_ARCH="gfx90a;gfx942;gfx1030;gfx1100" VLLM_TARGET_DEVICE=rocm python3 setup.py develop bdist_wheel
 
@@ -317,9 +317,10 @@ FROM install_vllm AS deploy
 # Copy NIXL
 COPY --from=build_nixl /usr/local/nixl /usr/local/nixl
 COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/ucx /usr/local/ucx
-ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+ENV NIXL_PLUGIN_DIR=/usr/local/nixl/lib/x86_64-linux-gnu/plugins
+ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:/usr/local/nixl/lib/x86_64-linux-gnu/:$NIXL_PLUGIN_DIR:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages/:/opt/nixl/test/python/:$PYTHONPATH
-
+ENV UCX_TLS=^cuda_ipc
 
 ENV DYNAMO_HOME=/workspace
 
@@ -349,7 +350,7 @@ ENV USERNAME=ubuntu
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-RUN apt-get update && apt-get install -y sudo gnupg2 gnupg1 \
+RUN apt-get update && apt-get install -y sudo gnupg2 gnupg1 jq\
     && echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME \
     && mkdir -p /home/$USERNAME \
@@ -365,6 +366,8 @@ COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/nixl /usr/local/n
 COPY --from=build_nixl --chown=$USERNAME:$USERNAME  /usr/local/ucx /usr/local/ucx
 ENV LD_LIBRARY_PATH=/usr/local/ucx/lib:/usr/local/nixl/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/usr/local/nixl/lib/python3/dist-packages/:/opt/nixl/test/python/:$PYTHONPATH
+ENV UCX_TLS=^cuda_ipc
+ENV NIXL_PLUGIN_DIR=/usr/local/nixl/lib/x86_64-linux-gnu/plugins
 
 ENV DYNAMO_HOME=/workspace
 # Activate virtual environment
